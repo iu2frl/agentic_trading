@@ -1,0 +1,7 @@
+yfinance
+praw
+dotenv
+pandas_ta
+numpy==1.22.4
+sqlite3
+ntscraper

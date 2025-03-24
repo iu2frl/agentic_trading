@@ -1,0 +1,6 @@
+.env
+__pycache__
+agents/db/__pycache__
+agents/db/social_media.db
+agents/db/sentiment_scores.db
+agents/utils/__pycache__
