@@ -1,119 +1,185 @@
-import pandas as pd
-import sqlite3
+from sqlalchemy import create_engine, Column, Integer, String, Float, Date, Text, inspect
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-SENTIMENT_DB_FILE = "agents/db/sentiment_scores.db"
-SOCIAL_MEDIA_DB_FILE = "agents/db/social_media.db"
+Base = declarative_base()
 
-class SentimentDB(object):
+class DB:
+    def __init__(self, DB_PATH):
+        db_url=f"sqlite:///{DB_PATH}"
+        self.engine = create_engine(db_url, echo=True)
+        Base.metadata.create_all(self.engine)
+        self.Session = sessionmaker(bind=self.engine)
 
-    """docstring for SentimentDB."""
-    def __init__(self, DB_FILE=SENTIMENT_DB_FILE):
-        super(SentimentDB, self).__init__()
-        self.DB_FILE=DB_FILE
+    def create(self, obj):
+        session = self.Session()
+        try:
+            session.add(obj)
+            session.commit()
+            return obj
+        except Exception as e:
+            session.rollback()
+            print(f"Error: {e}")
+        finally:
+            session.close()
 
-    def init_table(self, share_symbol):
-        """Initialize a table for the given share symbol if it doesn't exist."""
-        table_name = f"sentiment_{share_symbol.upper()}"  # Ensuring table names are uppercase
-        with sqlite3.connect(self.DB_FILE) as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS {table_name} (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    date TEXT UNIQUE,
-                    average_score REAL
-                )
-            """)
-            conn.commit()
+    def read(self, model, *conditions, **filters):
+        session = self.Session()
+        try:
+            query = session.query(model)
 
-    def update_score(self, share_symbol, date, average_score):
-        """Insert or update the sentiment score for a given share and date."""
-        table_name = f"sentiment_{share_symbol.upper()}"
-        with sqlite3.connect(self.DB_FILE) as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"""
-                INSERT INTO {table_name} (date, average_score)
-                VALUES (?, ?)
-                ON CONFLICT(date) DO UPDATE SET average_score=excluded.average_score
-            """, (date, average_score))
-            conn.commit()
+            # Apply filters for direct equality conditions (column == value)
+            if filters:
+                query = query.filter(*[getattr(model, key) == value for key, value in filters.items()])
 
-    def date_exists(self, share_symbol, date):
-        """Check if a sentiment score already exists for a given share and date."""
-        table_name = f"sentiment_{share_symbol.upper()}"
-        with sqlite3.connect(self.DB_FILE) as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"SELECT 1 FROM {table_name} WHERE date = ?", (date,))
-            return cursor.fetchone() is not None  # Returns True if date exists, False otherwise
+            # Apply more complex conditions (e.g., <, >, !=)
+            if conditions:
+                query = query.filter(*conditions)
 
+            return query.all()
+        finally:
+            session.close()
 
-    def get_sentiment_data(self, share_symbol):
-        """Retrieve all sentiment scores for the given share symbol as a pandas DataFrame."""
-        table_name = f"sentiment_{share_symbol.upper()}"
-        with sqlite3.connect(self.DB_FILE) as conn:
-            query = f"SELECT date, average_score FROM {table_name} ORDER BY date ASC"
-            df = pd.read_sql_query(query, conn)
-        return df
+    def update(self, model, filters, update_data):
+        session = self.Session()
+        try:
+            records = session.query(model).filter_by(**filters)
+            if records.count():
+                records.update(update_data)
+                session.commit()
+                return records.all()
+        except Exception as e:
+            session.rollback()
+            print(f"Error: {e}")
+        finally:
+            session.close()
+
+    def delete(self, model, **filters):
+        session = self.Session()
+        try:
+            records = session.query(model).filter_by(**filters)
+            count = records.count()
+            if count:
+                records.delete()
+                session.commit()
+                return count
+        except Exception as e:
+            session.rollback()
+            print(f"Error: {e}")
+        finally:
+            session.close()
+    def table_exists(self, table_name: str) -> bool:
+        inspector = inspect(self.engine)
+        return table_name in inspector.get_table_names()
+
+# Define models
+
+class AnalystReport(Base):
+    __tablename__ = "analyst_reports"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, nullable=True, default=None)
+    ticker = Column(String, nullable=True, default=None, index=True)
+    category = Column(String, nullable=True, default=None)
+    content = Column(Text, nullable=True, default=None)
+    model = Column(Text, nullable=True, default=None) # the llm used
+
+class ResearchTeamDebate(Base):
+    __tablename__ = "research_team_debate"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, nullable=True, default=None)
+    ticker = Column(String, nullable=True, default=None, index=True)
+    bullish = Column(Text, nullable=True, default=None)
+    bearish = Column(Text, nullable=True, default=None)
+
+class RiskTeamDebate(Base):
+    __tablename__ = "risk_team_debate"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, nullable=True, default=None)
+    ticker = Column(String, nullable=True, default=None, index=True)
+    aggressive = Column(Text, nullable=True, default=None)
+    neutral = Column(Text, nullable=True, default=None)
+    conservative = Column(Text, nullable=True, default=None)
+
+class ManagerDecision(Base):
+    __tablename__ = "manager_decision"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, nullable=True, default=None)
+    ticker = Column(String, nullable=True, default=None, index=True)
+    reason = Column(Text, nullable=True, default=None)
+    decision = Column(Text, nullable=True, default=None)
+
+class ManagerDecisionLongShort(Base):
+    __tablename__ = "manager_decision_long_short"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, nullable=True, default=None)
+    ticker = Column(String, nullable=True, default=None, index=True)
+    reason = Column(Text, nullable=True, default=None)
+    decision = Column(Text, nullable=True, default=None)
+
+class Fundamentals(Base):
+    __tablename__ = "fundamentals"
     
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, nullable=True, default=None)
+    ticker = Column(String, nullable=True, default=None, index=True)
+    company_id = Column(Integer, nullable=True, default=None)
+    pe = Column(Float, nullable=True, default=None)
+    ev_to_ebitda = Column(Float, nullable=True, default=None)
+    pb = Column(Float, nullable=True, default=None)
+    mcap_to_sales = Column(Float, nullable=True, default=None)
 
-class SocialMediaDB(object):
-    """Database for storing social media posts related to stocks."""
-
-    def __init__(self, DB_FILE=SOCIAL_MEDIA_DB_FILE):
-        super(SocialMediaDB, self).__init__()
-        self.DB_FILE = DB_FILE
-
-    def init_table(self, share_symbol):
-        """Initialize a table for the given share symbol if it doesn't exist."""
-        table_name = share_symbol.upper() # Ensuring table names are uppercase
-        with sqlite3.connect(self.DB_FILE) as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS {table_name} (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    content TEXT,
-                    link TEXT,
-                    category TEXT,
-                    date TEXT
-                )
-            """)
-            conn.commit()
-
-    def table_exists(self, table_name):
-        """Check if a given table exists in the database."""
-        with sqlite3.connect(self.DB_FILE) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT name FROM sqlite_master 
-                WHERE type='table' AND name=?
-            """, (table_name,))
-            return cursor.fetchone() is not None  # Returns True if table exists, False otherwise
-
-
-    def insert_post(self, share_symbol, content, link, category, date):
-        """Insert a new social media post into the database."""
-        table_name = share_symbol.upper()
-        with sqlite3.connect(self.DB_FILE) as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"""
-                INSERT INTO {table_name} (content, link, category, date)
-                VALUES (?, ?, ?, ?)
-            """, (content, link, category, date))
-            conn.commit()
-
-    def post_exists(self, share_symbol, content):
-        """Check if a specific post already exists for a given share."""
-        table_name = share_symbol.upper()
-        with sqlite3.connect(self.DB_FILE) as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"SELECT 1 FROM {table_name} WHERE content = ?", (content,))
-            return cursor.fetchone() is not None  # Returns True if content exists, False otherwise
-
-    def get_posts(self, share_symbol):
-        """Retrieve all social media posts for the given share symbol as a pandas DataFrame."""
-        table_name = share_symbol.upper()
-        with sqlite3.connect(self.DB_FILE) as conn:
-            query = f"SELECT content, link, category, date FROM {table_name} ORDER BY date ASC"
-            df = pd.read_sql_query(query, conn)
-        return df
-
+class News(Base):
+    __tablename__ = "news"
     
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, nullable=True, default=None)
+    ticker = Column(String, nullable=True, default=None, index=True)
+    link = Column(String, nullable=True, default=None)
+    source = Column(String, nullable=True, default=None)
+    content = Column(String, nullable=True, default=None)
+    title = Column(String, nullable=True, default=None)
+
+class Technicals(Base):
+    __tablename__ = "technicals"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    date = Column(Date, nullable=True, default=None)
+    ticker = Column(String, nullable=True, default=None,  index=True)   
+    open =Column(Float, nullable=True, default=None)
+    high = Column(Float, nullable=True, default=None)
+    low =Column(Float, nullable=True, default=None)      
+    close = Column(Float, nullable=True, default=None)  
+    volume = Column(Float, nullable=True, default=None)       
+    rsi =Column(Float, nullable=True, default=None)   
+    adx =Column(Float, nullable=True, default=None)   
+    bb_lower = Column(Float, nullable=True, default=None)   
+    bb_middle = Column(Float, nullable=True, default=None)  
+    bb_upper = Column(Float, nullable=True, default=None)       
+    atr =Column(Float, nullable=True, default=None)         
+    vwma = Column(Float, nullable=True, default=None)       
+    cci = Column(Float, nullable=True, default=None)     
+    macd = Column(Float, nullable=True, default=None)  
+    macd_signal =Column(Float, nullable=True, default=None)
+
+# Example Usage
+if __name__ == "__main__":
+    """
+    db = DB()
+    
+    # Example Create
+    new_report = AnalystReport(date='2025-04-03', ticker='AAPL', category='Market', content='Apple stock is strong.')
+    db.create(new_report)
+    
+    # Example Read
+    reports = db.read(AnalystReport, ticker='AAPL')
+    for report in reports:
+        print(report.id, report.content)
+    
+    # Example Update
+    db.update(AnalystReport, {"ticker": "AAPL"}, {"content": "Updated content"})
+    
+    # Example Delete
+    db.delete(AnalystReport, ticker='AAPL')
+    """
+
+    pass

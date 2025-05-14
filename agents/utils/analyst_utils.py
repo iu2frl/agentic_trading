@@ -2,6 +2,7 @@
 
 import yfinance as yf
 import pandas_ta as ta
+import pandas as pd
 import praw
 
 from ntscraper import Nitter
@@ -18,7 +19,8 @@ import re
 import time
 import requests
 
-from agents.db.db import SentimentDB, SocialMediaDB
+# from agents.db.db import SentimentDB, SocialMediaDB
+from agents.utils.helpers import Color
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -28,6 +30,7 @@ REDDIT_CLIENT_ID=os.getenv('REDDIT_CLIENT_ID')
 REDDIT_USER_AGENT=os.getenv('REDDIT_USER_AGENT')
 X_BEARER_TOKEN=os.getenv('X_BEARER_TOKEN')
 GEMINI_API_KEY=os.getenv("GEMINI_API_KEY")
+SERP_KEY=os.getenv('SERP_KEY')
 
 class Reddit:
     """Reddit data helper for analyst agent."""
@@ -177,7 +180,7 @@ class X:
         self.scraper = Nitter(log_level=1, skip_instance_check=False)
         self.start_date = start_date
         self.end_date = end_date
-        self.db = SocialMediaDB()
+        # self.db = SocialMediaDB()
 
     def search_posts_in_date_range(self, share_name, share_symbol,  max_results=10, force_scrape=False):
         def parse_tweet_date(tweet_date):
@@ -196,24 +199,32 @@ class X:
 
         """
         table_name = share_symbol.upper()
-        self.db.init_table(table_name)
+        
         # Skip scraping if the table exists and force_scrape=False
         if not force_scrape and self.db.table_exists(table_name):
             print(f"Table '{table_name}' already exists. Skipping scraping.")
             return  
+        
+        self.db.init_table(table_name)
 
         try:
+            print(f"{Color.BLUE}Getting tweets...{Color.RESET}")
             tweets = self.scraper.get_tweets(
                 share_name, 
                 mode="term", 
                 since=self.start_date, 
                 until=self.end_date
-            )['tweets']
+            )
+            print(tweets)
 
+            print(f"{Color.BLUE}Validating response...{Color.RESET}")
             if not isinstance(tweets, list):
                 print(f"Unexpected response format: {tweets}")
                 return
 
+            if not tweets or len(tweets) == 0:
+                print(f"{Color.RED}No tweets retrieved.{Color.RESET}")
+                return
             for tweet in tweets:
                 try:
                     raw_date = tweet.get("date", "")  # Example: 'Mar 28, 2024 · 12:30 PM UTC'
@@ -230,11 +241,10 @@ class X:
                         date=formatted_date
                     )
                 except Exception as e:
-                    print(f"Skipping a tweet due to error: {e}")
-
+                    print(f"{Color.RED}Skipping a tweet due to error: {e}{Color.RESET}")
 
         except Exception as e:
-            print(f"Error fetching tweets: {e}")
+            print(f"{Color.RED}Error fetching tweets: {e}{Color.RESET}")
     
 class ShareData:
     """ShareData data helper for analyst agent."""
@@ -248,6 +258,14 @@ class ShareData:
         """
         self.ticker = f"{ticker}.NS" if country.lower() == 'india' and stock_exchange.upper() == 'NS' else ticker
         self.stock = yf.Ticker(self.ticker)
+        self.stock_info = self.stock.info
+        self.ratios = [
+            "trailingPE", "forwardPE", "ebitdaMargins", "profitMargins", "grossMargins",
+            "operatingMargins", "returnOnAssets", "returnOnEquity", "currentRatio",
+            "quickRatio", "debtToEquity", "priceToBook", "priceToSalesTrailing12Months",
+            "enterpriseToRevenue", "enterpriseToEbitda", "pegRatio", "payoutRatio",
+            "dividendRate", "dividendYield", "fiveYearAvgDividendYield"
+        ]
     
     def get_price(self, start_date, end_date):
         """Fetch historical stock price data for the given date range."""
@@ -275,6 +293,11 @@ class ShareData:
         except Exception as e:
             return f"Error fetching balance sheet: {e}"
 
+    def get_available_ratios(self):
+        available_data = {key: self.stock_info[key] for key in self.ratios if key in self.stock_info}
+        formatted_string = "\n".join(f"{key}: {value}" for key, value in available_data.items())
+        return f"""{formatted_string}"""
+
     def get_share_name(self):
         """Fetch the company name from the ticker symbol."""
         try:
@@ -282,11 +305,17 @@ class ShareData:
         except Exception as e:
             return f"Error fetching company name: {e}"
 
+    def get_shareholding(self):
+        try:
+            return self.stock.major_holders
+        except Exception as e:
+            return f"Error fetching major shareholders: {e}"
+
     def get_technical_indicators(self, start_date, end_date):
         """Calculate and return technical indicators: RSI, ADX, Bollinger Bands, ATR, VWMA (as VR), CCI, and MACD."""
         try:
             data = self.get_price(start_date, end_date)
-            
+
             # RSI
             data['RSI'] = ta.rsi(data['Close'])
 
@@ -350,10 +379,79 @@ class ShareData:
 
         return summary
 
-class News:
+class ScreenerData:
+    def __init__(self, days=90):
+        self.days = days
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Accept": "application/json",
+        }
+
+    def api_call(self, url):
+        try:
+            print("---------------------------")
+            print(f"Calling : {url}")
+            print("---------------------------")
+            response = requests.get(url, headers=self.headers)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching data: {e}")
+            return None
+    
+    def process_response(self, response):
+        if not response or "datasets" not in response:
+            return None
+
+        processed_data = {}
+
+        # Create an empty DataFrame for the merged data
+        merged_df = pd.DataFrame()
+
+        # Iterate through each dataset
+        for dataset in response["datasets"]:
+            metric = dataset["metric"]
+            values = dataset.get("values", [])
+
+            # Convert values into a DataFrame with Date as index
+            df = pd.DataFrame(values, columns=["Date", metric])
+            df["Date"] = pd.to_datetime(df["Date"])  # Convert the Date to datetime format
+
+            # Merge the data with the main DataFrame on the 'Date' column
+            if merged_df.empty:
+                merged_df = df
+            else:
+                merged_df = pd.merge(merged_df, df, on="Date", how="outer")
+
+        # Sort by date if necessary and reset index
+        merged_df = merged_df.sort_values(by="Date").reset_index(drop=True)
+
+        return merged_df
+
+    def pe(self, company_id=3365):
+        url = f"https://www.screener.in/api/company/{company_id}/chart/?q=Price+to+Earning-Median+PE-EPS&days={self.days}&consolidated=true"
+        response = self.api_call(url)
+        return self.process_response(response)
+    
+    def ev_multiple(self, company_id=3365):
+        url = f"https://www.screener.in/api/company/{company_id}/chart/?q=EV+Multiple-Median+EV+Multiple-EBITDA&days={self.days}&consolidated=true"
+        response = self.api_call(url)
+        return self.process_response(response)
+    
+    def pbv(self, company_id=3365):
+        url = f"https://www.screener.in/api/company/{company_id}/chart/?q=Price+to+book+value-Median+PBV-Book+value&days={self.days}&consolidated=true"
+        response = self.api_call(url)
+        return self.process_response(response)
+    
+    def market_cap_to_sales(self, company_id=3365):
+        url = f"https://www.screener.in/api/company/{company_id}/chart/?q=Market+Cap+to+Sales-Median+Market+Cap+to+Sales-Sales&days={self.days}&consolidated=true"
+        response = self.api_call(url)
+        return self.process_response(response)
+
+class NewsData:
     """News data analyst agent using SerpAPI's Google News API."""
     
-    def __init__(self, api_key):
+    def __init__(self, api_key=SERP_KEY):
         """Initialize the News class with SerpAPI key."""
         self.api_key = api_key
         self.base_url = "https://serpapi.com/search"
@@ -365,7 +463,7 @@ class News:
             end_date = datetime.date.today()
         
         if start_date is None:
-            start_date = end_date - datetime.timedelta(days=180)  # Default: Last 6 months
+            start_date = end_date - datetime.timedelta(days=60)  # Default: Last 2 months
         
         params = {
             "engine": "google_news",
@@ -382,14 +480,7 @@ class News:
             response.raise_for_status()
             data = response.json()
             
-            articles = []
-            for item in data.get("news_results", []):
-                articles.append({
-                    "title": item.get("title"),
-                    "url": item.get("link"),
-                    "source": item.get("source", {}).get("name"),
-                    "date": item.get("date")
-                })
+            articles = data['news_results']
             
             return articles if articles else "No relevant news found."
         except requests.exceptions.RequestException as e:
@@ -399,8 +490,8 @@ class SocialMedia(object):
     """docstring for SocialMedia."""
     def __init__(self, start_date, end_date):
         super(SocialMedia, self).__init__()
-        self.sentiment_db = SentimentDB()
-        self.socialmedia_db = SocialMediaDB()
+        # self.sentiment_db = SentimentDB()
+        # self.socialmedia_db = SocialMediaDB()
         self.sentimentanalyzer = SentimentAnalyzer()
 
         self.start_date = start_date
@@ -449,7 +540,6 @@ class SocialMedia(object):
             # Move to the next day
             current_date += timedelta(days=1)
     
-
     def get_sentiment_scores(self, share_symbol):
         df = self.db.get_sentiment_data(share_symbol)
         return df
@@ -546,8 +636,8 @@ if __name__ == "__main__":
     )
     
     tweets = x_api.search_posts_in_date_range(
-        share_name="TCS",
-        share_symbol="TCS",
+        share_name="Bajaj Finance",
+        share_symbol="BAJFINANCE",
 
     )
 
