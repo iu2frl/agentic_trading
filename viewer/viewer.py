@@ -4,7 +4,7 @@ import plotly.graph_objs as go
 import numpy as np
 
 from config.settings import *
-from engine import Engine
+from simulation.engine import Engine
 
 # Config
 #======================================================================
@@ -86,12 +86,12 @@ def load_trade():
     data = engine.manager.read_trade_long_short(ticker=SHARE, till_date=TILL_DATE)
     return pd.DataFrame(data)
 
-from utils import results_figure, macd_returns
+from utils.utils import results_figure, macd_returns
 
 # Technical Trading results
 #======================================================================
 
-from utils import buy_and_hold, long_short_trade
+from utils.utils import buy_and_hold, long_short_trade
 
 technicals_df = load_technicals_results()
 trade_df = load_trade()

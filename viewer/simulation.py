@@ -1,5 +1,5 @@
 from agents.db.db import DB, ManagerDecision, ManagerDecisionLongShort, Technicals
-from utils import start_date, end_date
+from utils.utils import start_date, end_date
 
 import pandas as pd
 import numpy as np
@@ -316,7 +316,7 @@ st.dataframe(styled_metrics, use_container_width=True)
 st.subheader("Technicals")
 st.dataframe(technicals_df)
 
-from utils import macd_returns
+from utils.utils import macd_returns
 import matplotlib.pyplot as plt
 
 

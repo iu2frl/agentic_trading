@@ -9,3 +9,7 @@ agents/utils/__pycache__
 dataset
 db
 archives
+
+__pycache__/
+*.pyc
+data/db.sqlite3

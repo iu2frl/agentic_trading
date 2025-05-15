@@ -7,13 +7,16 @@ Research baseline : https://arxiv.org/pdf/2412.20138
 
 ## Research objectives
 The research objectives cover :-
-- Exploration of LLM based trading strategy on Indian markets.
-- Exploration of LLM capabilities for stock trading.
+- Exploration of LLM based trading strategy on **Indian markets.**
+- Exploration of **LLM capabilities** for stock trading.
 
 ## Test Results
 
 Assuming the following :-
 - Intial Investment INR 100000/-
+- Share : TCS (Tata Consultancy Services)
+- Test period start : 2025-01-01
+- Test period end : 2025-04-01
 
 Results :-
 

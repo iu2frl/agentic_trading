@@ -17,3 +17,6 @@ TECHNICALS_TABLE = "technicals"
 REPORTS_TABLE = "analyst_reports"
 DEBATE_TABLE="research_team_debate"
 DECISION_TABLE="manager_decision_long_short"
+
+# Eval config
+RISK_FREE_RATE="0.05" # 5% annual risk free return

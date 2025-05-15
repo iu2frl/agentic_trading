@@ -1,0 +1,26 @@
+[project]
+name = "investment-agent-system"
+version = "0.1.0"
+description = "Multi-agent investment simulation and analysis system"
+authors = [
+    { name = "Your Name", email = "your@email.com" }
+]
+dependencies = [
+    "yfinance",
+    "pandas",
+    "numpy",
+    "matplotlib",
+    "rich",
+    "typer"
+]
+requires-python = ">=3.9"
+
+[project.scripts]
+agentic-trader = "cli:app"
+
+[tool.setuptools]
+packages = ["agents", "agents.utils", "agents.db", "config", "simulation", "viewer", "tests"]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"

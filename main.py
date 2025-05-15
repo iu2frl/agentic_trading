@@ -1,6 +1,6 @@
-from engine import Engine
+from simulation.engine import Engine
 from config.settings import SHARE, DB_PATH
-from utils import start_date, end_date
+from utils.utils import start_date, end_date
 
 def init_engine():
     engine = Engine(
@@ -21,4 +21,12 @@ def generate_research_debates():
 
 # Step 3 : Trading Decision : Long/ Short
 def generate_trades():
+    pass
+
+if __name__ == "__main__":
+
+
+
+
+
     pass
