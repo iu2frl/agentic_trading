@@ -3,20 +3,15 @@
 import yfinance as yf
 import pandas_ta as ta
 import pandas as pd
-import praw
-
-from ntscraper import Nitter
 
 from google import genai
 from google.genai.types import HttpOptions
 
 import datetime
-from datetime import  timezone, timedelta, date
+from datetime import timedelta
 from dateutil import parser
 from pprint import pprint
 import os
-import re
-import time
 import requests
 
 # from agents.db.db import SentimentDB, SocialMediaDB
@@ -25,227 +20,10 @@ from agents.utils.helpers import Color
 from dotenv import load_dotenv
 load_dotenv()
 
-REDDIT_CLIENT_SECRET=os.getenv('REDDIT_CLIENT_SECRET')
-REDDIT_CLIENT_ID=os.getenv('REDDIT_CLIENT_ID')
-REDDIT_USER_AGENT=os.getenv('REDDIT_USER_AGENT')
-X_BEARER_TOKEN=os.getenv('X_BEARER_TOKEN')
+
 GEMINI_API_KEY=os.getenv("GEMINI_API_KEY")
 SERP_KEY=os.getenv('SERP_KEY')
 
-class Reddit:
-    """Reddit data helper for analyst agent."""
-    
-    def __init__(self, client_id, client_secret, user_agent):
-        """Initialize Reddit API client."""
-        self.reddit = praw.Reddit(
-            client_id=client_id,
-            client_secret=client_secret,
-            user_agent=user_agent
-        )
-        self.subreddits = [
-            "IndianStockMarket",
-            "IndiaInvestments",
-            "IndianStreetBets",
-            "StockMarketIndia"
-        ]
-    
-    def get_posts_by_date(self, date, limit=50):
-        """
-        Retrieve Reddit posts from the specified date across multiple subreddits.
-
-        :param date: A datetime.date object representing the date to retrieve posts for.
-        :param limit: Maximum number of posts to fetch per subreddit.
-        :return: List of relevant Reddit posts.
-        """
-        try:
-            # Convert date to start and end timestamps (00:00:00 - 23:59:59)
-            start_timestamp = int(time.mktime(datetime.datetime(date.year, date.month, date.day, 0, 0, 0).timetuple()))
-            end_timestamp = int(time.mktime(datetime.datetime(date.year, date.month, date.day, 23, 59, 59).timetuple()))
-
-            results = []
-
-            for subreddit in self.subreddits:
-                subreddit_obj = self.reddit.subreddit(subreddit)
-
-                # Use search with 'timestamp' filtering
-                posts = subreddit_obj.search(
-                    query="timestamp:{}..{}".format(start_timestamp, end_timestamp),
-                    sort="new",
-                    syntax="cloudsearch",
-                    limit=limit
-                )
-
-                for post in posts:
-                    results.append({
-                        'title': post.title,
-                        'url': post.url,
-                        'created_utc': datetime.datetime.utcfromtimestamp(post.created_utc),
-                        'score': post.score,
-                        'num_comments': post.num_comments,
-                        'subreddit': post.subreddit.display_name
-                    })
-
-            return results if results else "No relevant posts found on this date."
-        except Exception as e:
-            return f"Error fetching Reddit posts: {e}"
-        
-    def search_latest_posts(self, share_name, limit=20):
-        """
-        Search for the latest Reddit posts related to a given share in specified subreddits.
-        
-        :param share_name: The stock/company name to search for.
-        :param subreddits: List of subreddits to search within. Defaults to ['stocks', 'investing'] if None.
-        :param limit: Number of posts to retrieve per subreddit.
-        :return: List of relevant Reddit posts.
-        """
-        try:
-            if self.subreddits is None:
-                self.subreddits = ["stocks", "investing"]  # Default subreddits if none are provided
-
-            results = []
-            query = f'"{share_name}"'  # Use quotes for better match
-            
-            for subreddit in self.subreddits:
-                posts = self.reddit.subreddit(subreddit).search(query, sort='new', limit=limit)
-                
-                for post in posts:
-                    results.append({
-                        'title': post.title,
-                        'url': post.url,
-                        'created_utc': datetime.datetime.utcfromtimestamp(post.created_utc),
-                        'score': post.score,
-                        'num_comments': post.num_comments,
-                        'subreddit': post.subreddit.display_name  # Include subreddit name
-                    })
-
-            return results if results else "No relevant posts found."
-        except Exception as e:
-            return f"Error fetching Reddit posts: {e}"
-        
-    def get_post_details(self, post_url):
-        """
-        Get detailed information about a Reddit post from its URL.
-        
-        :param post_url: The URL of the Reddit post.
-        :return: Dictionary containing post details.
-        """
-        try:
-            # Extract post ID from URL using regex
-            match = re.search(r"comments/([a-z0-9]+)/", post_url)
-            if not match:
-                return "Invalid Reddit post URL."
-            
-            post_id = match.group(1)
-            post = self.reddit.submission(id=post_id)
-
-            # Fetch post details
-            post_details = {
-                'title': post.title,
-                'url': post.url,
-                'created_utc': datetime.fromtimestamp(post.created_utc, timezone.utc),
-                'score': post.score,
-                'num_comments': post.num_comments,
-                'subreddit': post.subreddit.display_name,
-                'author': post.author.name if post.author else 'Unknown',
-                'content': post.selftext,  # The text content of the post
-                'top_comments': []
-            }
-
-            # Fetch top 5 comments (sorted by best)
-            post.comments.replace_more(limit=0)  # Ensure we get all comments
-            top_comments = sorted(post.comments, key=lambda x: x.score, reverse=True)[:5]
-            
-            for comment in top_comments:
-                post_details['top_comments'].append({
-                    'author': comment.author.name if comment.author else 'Unknown',
-                    'text': comment.body,
-                    'score': comment.score
-                })
-
-            return post_details
-        except Exception as e:
-            return f"Error fetching Reddit post details: {e}"
-
-class X:
-    """X (Twitter) data helper using Nitter."""
-
-    def __init__(self, start_date, end_date ):
-        """
-        Initializes the X class with a date range and database connection.
-        
-        :param start_date: Start date in 'YYYY-MM-DD' format.
-        :param end_date: End date in 'YYYY-MM-DD' format.
-        :param db_file: Path to the SocialMediaDB SQLite database.
-        """
-        self.scraper = Nitter(log_level=1, skip_instance_check=False)
-        self.start_date = start_date
-        self.end_date = end_date
-        # self.db = SocialMediaDB()
-
-    def search_posts_in_date_range(self, share_name, share_symbol,  max_results=10, force_scrape=False):
-        def parse_tweet_date(tweet_date):
-            """
-            Convert tweet date from 'Mar 28, 2024 · 12:30 PM UTC' format to 'YYYY-MM-DD'.
-            """
-            try:
-                parsed_date = datetime.datetime.strptime(tweet_date, "%b %d, %Y · %I:%M %p %Z")
-                return parsed_date.strftime("%Y-%m-%d")
-            except ValueError as e:
-                print(f"Error parsing date: {tweet_date} -> {e}")
-                return None  # Handle errors gracefully
-        """
-        Searches for tweets about a given share within the specified date range
-        and inserts them into the database with category 'X'.
-
-        """
-        table_name = share_symbol.upper()
-        
-        # Skip scraping if the table exists and force_scrape=False
-        if not force_scrape and self.db.table_exists(table_name):
-            print(f"Table '{table_name}' already exists. Skipping scraping.")
-            return  
-        
-        self.db.init_table(table_name)
-
-        try:
-            print(f"{Color.BLUE}Getting tweets...{Color.RESET}")
-            tweets = self.scraper.get_tweets(
-                share_name, 
-                mode="term", 
-                since=self.start_date, 
-                until=self.end_date
-            )
-            print(tweets)
-
-            print(f"{Color.BLUE}Validating response...{Color.RESET}")
-            if not isinstance(tweets, list):
-                print(f"Unexpected response format: {tweets}")
-                return
-
-            if not tweets or len(tweets) == 0:
-                print(f"{Color.RED}No tweets retrieved.{Color.RESET}")
-                return
-            for tweet in tweets:
-                try:
-                    raw_date = tweet.get("date", "")  # Example: 'Mar 28, 2024 · 12:30 PM UTC'
-                    formatted_date = parse_tweet_date(raw_date)  # Convert to 'YYYY-MM-DD'
-                    
-                    if formatted_date is None:
-                        continue  # Skip tweet if date conversion fails
-
-                    self.db.insert_post(
-                        share_symbol=table_name,
-                        content=tweet.get("text", ""),
-                        link=tweet.get("link", ""),
-                        category="X",
-                        date=formatted_date
-                    )
-                except Exception as e:
-                    print(f"{Color.RED}Skipping a tweet due to error: {e}{Color.RESET}")
-
-        except Exception as e:
-            print(f"{Color.RED}Error fetching tweets: {e}{Color.RESET}")
-    
 class ShareData:
     """ShareData data helper for analyst agent."""
     
@@ -630,18 +408,18 @@ if __name__ == "__main__":
 
     # pprint(post_details)
 
-    x_api = X(
-        start_date="2024-01-01",
-        end_date="2024-03-29"
-    )
+    # x_api = X(
+    #     start_date="2024-01-01",
+    #     end_date="2024-03-29"
+    # )
     
-    tweets = x_api.search_posts_in_date_range(
-        share_name="Bajaj Finance",
-        share_symbol="BAJFINANCE",
+    # tweets = x_api.search_posts_in_date_range(
+    #     share_name="Bajaj Finance",
+    #     share_symbol="BAJFINANCE",
 
-    )
+    # )
 
-    print(tweets)
+    # print(tweets)
 
     # print(tweets)
 

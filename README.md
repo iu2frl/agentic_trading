@@ -47,11 +47,17 @@ X_BEARER_TOKEN=""
 ```
 
 
-### Running the code
+#### Running the code
 ```python3 main.py```
 
-## Features
-- Multi agent collaborative framework.
+#### Start viewer
+```python -m viewer.viewer```
+
+
+## Data Sources
+- [Yahoo Finance](https://pypi.org/project/yfinance/) : Price & Technicals
+- [Screener](https://www.screener.in) : Fundamental ratios
+- [SerpAPI](https://serpapi.com/google-news-api) : News articles
 
 ## Methodology
 

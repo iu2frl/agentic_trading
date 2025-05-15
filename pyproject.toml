@@ -1,5 +1,5 @@
 [project]
-name = "investment-agent-system"
+name = "agentic-trader"
 version = "0.1.0"
 description = "Multi-agent investment simulation and analysis system"
 authors = [
@@ -8,10 +8,13 @@ authors = [
 dependencies = [
     "yfinance",
     "pandas",
-    "numpy",
+    "pandas_ta",
     "matplotlib",
     "rich",
-    "typer"
+    "typer",
+    "gradio",
+    "plotly",
+    "numpy==1.26.3"
 ]
 requires-python = ">=3.9"
 
@@ -19,7 +22,7 @@ requires-python = ">=3.9"
 agentic-trader = "cli:app"
 
 [tool.setuptools]
-packages = ["agents", "agents.utils", "agents.db", "config", "simulation", "viewer", "tests"]
+packages = ["agents", "agents.utils", "agents.db", "config", "simulation", "viewer"]
 
 [build-system]
 requires = ["setuptools", "wheel"]
