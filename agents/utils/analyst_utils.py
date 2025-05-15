@@ -36,7 +36,7 @@ class ShareData:
         """
         self.ticker = f"{ticker}.NS" if country.lower() == 'india' and stock_exchange.upper() == 'NS' else ticker
         self.stock = yf.Ticker(self.ticker)
-        self.stock_info = self.stock.info
+        self.stock_info = None
         self.ratios = [
             "trailingPE", "forwardPE", "ebitdaMargins", "profitMargins", "grossMargins",
             "operatingMargins", "returnOnAssets", "returnOnEquity", "currentRatio",
@@ -45,6 +45,12 @@ class ShareData:
             "dividendRate", "dividendYield", "fiveYearAvgDividendYield"
         ]
     
+    def get_info(self):
+        try:
+            self.stock_info=self.stock.info
+        except Exception as e:
+            return e    
+
     def get_price(self, start_date, end_date):
         """Fetch historical stock price data for the given date range."""
         try:

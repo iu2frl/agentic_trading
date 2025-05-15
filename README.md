@@ -5,6 +5,9 @@ This tool simulates a trading firm, by assigning each role of the firm hierarchy
 
 Research baseline : https://arxiv.org/pdf/2412.20138
 
+## Pipeline
+![Debate](./assets/pipeline.jpg)
+
 ## Research objectives
 The research objectives cover :-
 - Exploration of LLM based trading strategy on **Indian markets.**
@@ -67,6 +70,8 @@ X_BEARER_TOKEN=""
 - Fixed two agents : Bullish & Bearish
 - Set number of rounds of debate = n
 - Each agent gets the previous response of the other agent - in order to prepare a counter argument based on their assigned roles i.e. giving reason why to buy/not buy the stock.
+
+
 
 Simulation demo output :-
 ![Debate](./assets/debate-sim.jpeg)

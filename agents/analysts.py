@@ -1,7 +1,6 @@
-from agents.utils.analyst_utils import ShareData, SentimentAnalyzer, NewsData, ScreenerData
+from agents.utils.analyst_utils import ShareData, NewsData, ScreenerData
 from agents.utils.llm_utils import DeepSeekV3, GeminiFlash
 from agents.utils.prompts import technicals_prompt, fundamentals_prompt, news_prompt
-# from agents.db.db import DB
 from agents.db.db import Fundamentals, News, Technicals, AnalystReport, DB
 
 from agents.utils.helpers import Color
@@ -16,7 +15,6 @@ import pandas as pd
 
 class Analyst:
     """Generates concise detailed REPORTS for
-        - Social Media
         - Market Data (Technical Indicators)
         - Fundamental Data
         - News
@@ -121,10 +119,6 @@ class Analyst:
 
         # pprint(technical_data)
         
-    def social_media(self, share_name, share_symbol):
-
-        pass
-
     def scrape_news(self, share_name, max_results=100):
 
         articles = self.newsapi.search_news(
@@ -203,49 +197,6 @@ class Analyst:
 
             self.db.create(fundamentals_data)
             print(f"Inserted record for {date}")
-
-    # Read from db
-
-    def read_news(self, till_date):
-        cutoff_date = datetime.strptime(till_date, "%Y-%m-%d")
-        
-        data = self.db.read(
-            News, 
-            News.date < cutoff_date,  # Condition with `<`
-            ticker=self.ticker  # Direct equality using `==`
-        )
-        # Convert to DF
-        df = pd.DataFrame([row.__dict__ for row in data])
-        df.drop(columns=["_sa_instance_state"], inplace=True, errors="ignore")  # Remove SQLAlchemy metadata column
-        df = df.drop(columns=['content'], axis=1)
-        return df
-    
-    def read_fundamentals(self, till_date):
-        cutoff_date = datetime.strptime(till_date, "%Y-%m-%d")
-        
-        data = self.db.read(
-            Fundamentals, 
-            Fundamentals.date < cutoff_date,  # Condition with `<`
-            ticker=self.ticker  # Direct equality using `==`
-        )
-        # Convert to DF
-        df = pd.DataFrame([row.__dict__ for row in data])
-        df.drop(columns=["_sa_instance_state"], inplace=True, errors="ignore")  # Remove SQLAlchemy metadata column
-        return df
-
-    def read_technicals(self, till_date):
-        cutoff_date = datetime.strptime(till_date, "%Y-%m-%d")
-        
-        data = self.db.read(
-            Technicals, 
-            Technicals.date < cutoff_date,  # Condition with `<`
-            ticker=self.ticker  # Direct equality using `==`
-        )
-        # Convert to DF
-        df = pd.DataFrame([row.__dict__ for row in data])
-        df.drop(columns=["_sa_instance_state"], inplace=True, errors="ignore")  # Remove SQLAlchemy metadata column
-        return df
-
 
     # Analyst Report Generations
     def fundamentals(
@@ -393,7 +344,7 @@ News Headline : {df.loc[idx, 'title']}
 
         pass
 
-    # Read analyst Reports
+    # Read DB
 
     def read_reports(self, till_date):
         cutoff_date = datetime.strptime(till_date, "%Y-%m-%d")
@@ -407,4 +358,43 @@ News Headline : {df.loc[idx, 'title']}
         df = pd.DataFrame([row.__dict__ for row in data])
         df.drop(columns=["_sa_instance_state"], inplace=True, errors="ignore")  # Remove SQLAlchemy metadata column
         return df
+
+    def read_news(self, till_date):
+        cutoff_date = datetime.strptime(till_date, "%Y-%m-%d")
+        
+        data = self.db.read(
+            News, 
+            News.date < cutoff_date,  # Condition with `<`
+            ticker=self.ticker  # Direct equality using `==`
+        )
+        # Convert to DF
+        df = pd.DataFrame([row.__dict__ for row in data])
+        df.drop(columns=["_sa_instance_state"], inplace=True, errors="ignore")  # Remove SQLAlchemy metadata column
+        df = df.drop(columns=['content'], axis=1)
+        return df
     
+    def read_fundamentals(self, till_date):
+        cutoff_date = datetime.strptime(till_date, "%Y-%m-%d")
+        
+        data = self.db.read(
+            Fundamentals, 
+            Fundamentals.date < cutoff_date,  # Condition with `<`
+            ticker=self.ticker  # Direct equality using `==`
+        )
+        # Convert to DF
+        df = pd.DataFrame([row.__dict__ for row in data])
+        df.drop(columns=["_sa_instance_state"], inplace=True, errors="ignore")  # Remove SQLAlchemy metadata column
+        return df
+
+    def read_technicals(self, till_date):
+        cutoff_date = datetime.strptime(till_date, "%Y-%m-%d")
+        
+        data = self.db.read(
+            Technicals, 
+            Technicals.date < cutoff_date,  # Condition with `<`
+            ticker=self.ticker  # Direct equality using `==`
+        )
+        # Convert to DF
+        df = pd.DataFrame([row.__dict__ for row in data])
+        df.drop(columns=["_sa_instance_state"], inplace=True, errors="ignore")  # Remove SQLAlchemy metadata column
+        return df
