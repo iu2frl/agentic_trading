@@ -5,8 +5,7 @@ END_DATE="2025-01-01"
 LLM_TYPE="GEMINI"
 MODEL="gemini-2.0-flash"
 
-# DB_PATH="/home/avishkar/Desktop/tcs.db"
-DB_PATH="/home/avishkar/Desktop/MAJOR-PROJECT/agentic_trading/db/data.db"
+DB_PATH="./data.db"
 
 TILL_DATE = "2025-04-03"
 

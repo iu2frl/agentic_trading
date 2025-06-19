@@ -1,4 +1,4 @@
-from agents.utils.llm_utils import GeminiFlash
+from agents.utils.llm_utils import Gpt4Free
 from agents.utils.prompts import manager_prompt, manager_prompt_long_short
 from agents.db.db import ManagerDecision, DB, ResearchTeamDebate, ManagerDecisionLongShort
 
@@ -9,7 +9,7 @@ import re
 
 class Manager:
     def __init__(self, DB_PATH):
-        self.llm = GeminiFlash()
+        self.llm = Gpt4Free()
         self.db = DB(DB_PATH)
 
     def get_debate(self, date, ticker):

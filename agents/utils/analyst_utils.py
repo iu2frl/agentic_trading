@@ -4,8 +4,7 @@ import yfinance as yf
 import pandas_ta as ta
 import pandas as pd
 
-from google import genai
-from google.genai.types import HttpOptions
+from agents.utils.llm_utils import Gpt4Free
 
 import datetime
 from datetime import timedelta
@@ -330,9 +329,8 @@ class SocialMedia(object):
 
 # Sentiment Algo
 class SentimentAnalyzer:
-    def __init__(self, model_name="gemini-2.0-flash-001"):
-        self.client = genai.Client(http_options=HttpOptions(api_version="v1"), api_key=GEMINI_API_KEY)
-        self.model_name = model_name
+    def __init__(self, ai_model: Gpt4Free = Gpt4Free()):
+        self.model = ai_model
 
     def generate_prompt(self, company_name: str, headline: str) -> str:
         return (
@@ -343,12 +341,8 @@ class SentimentAnalyzer:
 
     def get_sentiment_score(self, company_name: str, headline: str):
         prompt = self.generate_prompt(company_name, headline)
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=prompt,
-        )
-        
-        response_text = response.text.strip()
+        response = self.model.call(prompt)
+        response_text = response.strip()
         lines = response_text.split("\n", 1)
         sentiment = lines[0].strip().upper() if lines else "UNKNOWN"
         explanation = lines[1].strip() if len(lines) > 1 else "No explanation provided."

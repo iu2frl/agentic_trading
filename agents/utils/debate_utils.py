@@ -1,6 +1,6 @@
 from openai import OpenAI
 
-from agents.utils.llm_utils import GeminiFlash
+from agents.utils.llm_utils import Gpt4Free
 from agents.utils.helpers import Color, load_file, write_json
 from agents.db.db import DB, ResearchTeamDebate
 
@@ -14,7 +14,7 @@ class DebateEngine(object):
     def __init__(self, DB_PATH):
         super(DebateEngine, self).__init__()
 
-        self.llm = GeminiFlash()
+        self.llm = Gpt4Free()
         self.db = DB(DB_PATH) 
 
     def construct_message(

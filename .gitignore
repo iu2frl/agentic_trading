@@ -14,3 +14,4 @@ archives
 __pycache__/
 *.pyc
 data/db.sqlite3
+data.db

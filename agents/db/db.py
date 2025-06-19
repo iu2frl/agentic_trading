@@ -6,9 +6,15 @@ Base = declarative_base()
 
 class DB:
     def __init__(self, DB_PATH):
-        db_url=f"sqlite:///{DB_PATH}"
+        db_url = f"sqlite:///{DB_PATH}"
         self.engine = create_engine(db_url, echo=True)
-        Base.metadata.create_all(self.engine)
+        inspector = inspect(self.engine)
+        
+        # Check if tables exist and create them if not
+        for table_name in Base.metadata.tables.keys():
+            if not inspector.has_table(table_name):
+                Base.metadata.create_all(self.engine)
+        
         self.Session = sessionmaker(bind=self.engine)
 
     def create(self, obj):

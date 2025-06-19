@@ -1,5 +1,5 @@
 from agents.utils.analyst_utils import ShareData, NewsData, ScreenerData
-from agents.utils.llm_utils import DeepSeekV3, GeminiFlash
+from agents.utils.llm_utils import Gpt4Free
 from agents.utils.prompts import technicals_prompt, fundamentals_prompt, news_prompt
 from agents.db.db import Fundamentals, News, Technicals, AnalystReport, DB
 
@@ -40,7 +40,7 @@ class Analyst:
 
         self.screener_data = ScreenerData()
         self.newsapi = NewsData()
-        self.llm = GeminiFlash()
+        self.llm = Gpt4Free()
 
         # Databases
         self.db = DB(DB_PATH=DB_PATH)

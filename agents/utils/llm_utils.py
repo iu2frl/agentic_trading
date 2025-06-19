@@ -77,3 +77,23 @@ class GeminiFlash:
         )
 
         return response.text
+
+class Gpt4Free:
+    def __init__(self):
+        from g4f.client import Client as G4FClient
+        
+        self.client = G4FClient()
+        self.model = "gpt-4.0-mini"
+        
+    def call(self, prompt):
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        )
+        
+        return response.choices[0].message.content

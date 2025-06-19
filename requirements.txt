@@ -1,0 +1,6 @@
+g4f
+pandas-ta
+numpy==1.26.3
+google-generativeai
+plotly
+gradio

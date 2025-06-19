@@ -1,4 +1,3 @@
-
 from agents.utils.helpers import get_date_range
 import pandas as pd
 import numpy as np
@@ -11,40 +10,41 @@ start_date, end_date = get_date_range(reference_date="2025-04-02", month_diff=3)
 
 # Trading strategies
 #======================================================================
-def macd_returns(
-        df,  # technical indicators df
-        initial_investment = 100000  
 
-):
-    df =df.copy()
+def calculate_macd(df, short_window=12, long_window=26, signal_window=9):
+    df['ema_short'] = df['close'].ewm(span=short_window, adjust=False).mean()
+    df['ema_long'] = df['close'].ewm(span=long_window, adjust=False).mean()
+    df['macd'] = df['ema_short'] - df['ema_long']
+    df['macd_signal'] = df['macd'].ewm(span=signal_window, adjust=False).mean()
+    return df
+
+def macd_returns(df, initial_investment=100000):
+    required_columns = ['macd', 'macd_signal', 'close']
+    for col in required_columns:
+        if col not in df.columns:
+            raise ValueError(f"Missing required column: {col}")
+
+    df = df.copy()
     df['Buy_Signal'] = np.where(
         (df['macd'] > df['macd_signal']) & (df['macd'].shift(1) <= df['macd_signal'].shift(1)), 1, 0
     )
     df['Sell_Signal'] = np.where(
         (df['macd'] < df['macd_signal']) & (df['macd'].shift(1) >= df['macd_signal'].shift(1)), -1, 0
     )
-
-
     df['Signal'] = df['Buy_Signal'] + df['Sell_Signal']
-
-
-    df['Position'] = df['Signal'].replace(to_replace=0, method='ffill')  
+    df['Position'] = df['Signal'].replace(to_replace=0, method='ffill')
     df['Daily_Return'] = df['close'].pct_change()
     df['Strategy_Return'] = df['Position'].shift(1) * df['Daily_Return']
     df['Cumulative_Return'] = (1 + df['Strategy_Return']).cumprod() - 1
-
     df['Net_Return'] = initial_investment * (1 + df['Cumulative_Return'])
-
 
     buy_triggers = df['Buy_Signal'].sum()
     sell_triggers = df['Sell_Signal'].sum()
-
 
     df['Peak'] = df['Net_Return'].cummax()
     df['Drawdown'] = df['Net_Return'] - df['Peak']
     df['Drawdown'] = df['Drawdown'].clip(lower=0)
     max_drawdown = df['Drawdown'].max()
-
 
     trades = df[df['Signal'] != 0]
     trades['Trade_Return'] = trades['Net_Return'].shift(-1) - trades['Net_Return']
